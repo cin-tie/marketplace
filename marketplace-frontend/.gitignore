@@ -1,0 +1,31 @@
+# Next.js специфичные файлы
+.next/
+out/
+.cache/
+.next/cache/
+.next/server/
+.next/static/
+.next/trace
+.next/types/
+
+# Общие правила
+node_modules/
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.DS_Store
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.vscode/
+.idea/
+*.tmp
+*.bak
+*.swp
+coverage/
+.nyc_output/
