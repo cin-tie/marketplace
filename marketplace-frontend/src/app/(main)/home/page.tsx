@@ -75,7 +75,7 @@ export default function Home() {
         <div
           className={`flex justify-center mt-[250px] ${hasLoaded ? "animate-fadeInUp" : "opacity-0"}`}
         >
-          <h1 className="text-3xl text-center font-bold text-[#f5f5f5]">
+          <h1 className="text-2xl text-center font-bold text-[#f5f5f5]">
             A platform for quickly selling and purchasing goods
           </h1>
         </div>
