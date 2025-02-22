@@ -6,12 +6,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "80:3000"
-  
+
   database:
     image: postgres:alpine
     environment:
       POSTGRES_USER: postuser
       POSTGRES_PASSWORD: postpass
+      POSTGRES_DB: DB
     ports:
       - "15432:5432"
     volumes:
