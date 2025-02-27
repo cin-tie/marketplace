@@ -15,6 +15,7 @@ import lombok.AllArgsConstructor;
 @Service
 @AllArgsConstructor
 public class UserService implements UserDetailsService{
+    
     private UserRepository userRepository;
     private PasswordEncoder passwordEncoder;
 

@@ -1,5 +1,7 @@
 package com.cintie.marketplace_backend.configurations;
 
+import javax.sql.DataSource;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -10,6 +12,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 
 import com.cintie.marketplace_backend.services.UserService;
@@ -22,15 +27,16 @@ import lombok.AllArgsConstructor;
 public class SecurityConfig {
 
     private UserService userService;
+    private DataSource dataSource;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception{
-        http.cors(cors->corsConfiguration())
-            .authorizeHttpRequests(req->req.requestMatchers("/auth/**").permitAll().anyRequest().authenticated())
-            .sessionManagement(session->session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED).sessionFixation(fixation-> fixation.newSession()))
-            .logout(logout->logout.logoutSuccessUrl("/auth/status").deleteCookies("JSESSIONID"))
-            .headers(headers->headers.frameOptions(frameOptions->frameOptions.deny()));
-            
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.cors(cors -> corsConfiguration())
+            .authorizeHttpRequests(req -> req.requestMatchers("/auth/**").permitAll().anyRequest().authenticated())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED).sessionFixation(fixation -> fixation.newSession()))
+            .logout(logout -> logout.logoutSuccessUrl("/auth/status").deleteCookies("JSESSIONID", "remember-me"))
+            .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.deny()))
+            .rememberMe(rememberme -> rememberme.rememberMeServices(rememberMeServices()));
         return http.build();
     }
 
@@ -56,5 +62,23 @@ public class SecurityConfig {
         cors.addAllowedOriginPattern("/**");
         cors.setMaxAge(3600L);
         return cors;
+    }
+
+    @Bean
+    public PersistentTokenRepository persistentTokenRepository(){
+        JdbcTokenRepositoryImpl tokenRepository = new JdbcTokenRepositoryImpl();
+        tokenRepository.setDataSource(dataSource);
+        return tokenRepository;
+    }
+
+    @Bean
+    public PersistentTokenBasedRememberMeServices rememberMeServices(){
+        PersistentTokenBasedRememberMeServices rememberMeServices = new PersistentTokenBasedRememberMeServices("sjkgdshjlshglksjgjlsfnjdvnls", userService, persistentTokenRepository());
+        rememberMeServices.setCookieName("remember-me");
+        //rememberMeServices.setUseSecureCookie(true); // For https
+        rememberMeServices.setAlwaysRemember(true);
+        rememberMeServices.setTokenValiditySeconds(4809600);
+        return rememberMeServices;
+
     }
 }

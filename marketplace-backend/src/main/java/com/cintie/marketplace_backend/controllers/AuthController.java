@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.cintie.marketplace_backend.entities.UserEntity;
 import com.cintie.marketplace_backend.exceptions.UsernameAlreadyExistsException;
+import com.cintie.marketplace_backend.exceptions.ValidationException;
 import com.cintie.marketplace_backend.services.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,6 +20,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class AuthController {
 
     private AuthenticationManager authenticationManager;
+    private PersistentTokenBasedRememberMeServices persistentTokenBasedRememberMeServices;
     private UserService userService;
 
     private final SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
@@ -54,19 +57,32 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<SignUpResp> signup(@RequestBody SignUpReq signUpReq) {
+        try{
+            signUpReq.validate();
+        } catch(ValidationException e){
+            return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
+        }
+
         UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").build();
         try {
             userEntity = userService.createUser(userEntity);
         } catch (UsernameAlreadyExistsException e) {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
-
+        
         return ResponseEntity.ok().body(new SignUpResp(true, null));
         
     }
     
     @PostMapping("/signin")
     public ResponseEntity<SignInResp> login(@RequestBody SignInReq signInReq, HttpServletRequest request, HttpServletResponse response) {
+        
+        try{
+            signInReq.validate();
+        } catch(ValidationException e){
+            return ResponseEntity.ok().body(new SignInResp(false, new String[] {e.getMessage()}));
+        }
+        
         Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(signInReq.username, signInReq.password);
         Authentication authenticationResp = null;
 
@@ -81,17 +97,34 @@ public class AuthController {
         securityContextHolderStrategy.setContext(context);;
         securityContextRepository.saveContext(context, request, response);
 
+        if(signInReq.rememberme){
+            persistentTokenBasedRememberMeServices.loginSuccess(request, response, authenticationResp);
+        }
+
         return ResponseEntity.ok().body(new SignInResp(true, null));
     }
 
     @PostMapping("/signout")
     public ResponseEntity<SignOutResp> signout(Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
+        persistentTokenBasedRememberMeServices.logout(request, response, authentication);
         securityContextLogoutHandler.logout(request, response, authentication);
         return ResponseEntity.ok().body(new SignOutResp(true, null));
     }
 
-    private record SignInReq(String username, String password) {}
-    private record SignUpReq(String username, String password) {}
+    private record SignInReq(String username, String password, boolean rememberme) {
+        public void validate() throws ValidationException{
+            if(username.isBlank()) throw new ValidationException("Username is required");
+            if(password.isBlank()) throw new ValidationException("Password is required");
+            if(password.length() < 8) throw new ValidationException("Password must contain more than 8 characters");
+        }
+    }
+    private record SignUpReq(String username, String password) {
+        public void validate() throws ValidationException{
+            if(username.isBlank()) throw new ValidationException("Username is required");
+            if(password.isBlank()) throw new ValidationException("Password is required");
+            if(password.length() < 8) throw new ValidationException("Password must contain more than 8 characters");
+        }
+    }
 
     private record StatusResp(Boolean auth) {}
     private record SignUpResp(Boolean success, String[] errors) {}
