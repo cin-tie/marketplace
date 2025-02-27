@@ -1,26 +1,33 @@
-# NestJS специфичные файлы
-dist/
-*.js.map
-*.d.ts
+HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
 
-# Общие правила
-node_modules/
-.env
-.env.local
-.env.development
-.env.production
-.env.test
-.DS_Store
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
 .vscode/
-.idea/
-*.tmp
-*.bak
-*.swp
-coverage/
-.nyc_output/
