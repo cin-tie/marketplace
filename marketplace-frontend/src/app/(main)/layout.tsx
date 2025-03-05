@@ -8,9 +8,9 @@ export default function Layout({
 }>) {
   return (
     <>
-        <Header />
-        {children}
-        <Foother />
+      <Header />
+      {children}
+      <Foother />
     </>
   );
 }

@@ -2,7 +2,6 @@ import Link from "next/link";
 import Button from "@/app/components/Button";
 
 export default function Header() {
-
   const isAuthorized = true;
 
   return (
@@ -16,10 +15,12 @@ export default function Header() {
         </Link>
       </div>
 
-      {isAuthorized && (<div>
-        <Button label="Sing in" href="/" variant="primary" />
-        <Button label="Sing up" href="/" variant="secondary" />
-      </div>)}
+      {isAuthorized && (
+        <div>
+          <Button label="Sing in" href="/" variant="primary" />
+          <Button label="Sing up" href="/" variant="secondary" />
+        </div>
+      )}
     </header>
   );
 }

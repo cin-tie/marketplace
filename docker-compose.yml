@@ -1,7 +1,6 @@
 services:
-
   frontend:
-    build: 
+    build:
       context: marketplace-frontend
       dockerfile: Dockerfile
     ports:
@@ -33,4 +32,4 @@ services:
 
 volumes:
   db-data:
-  pgadmin-data: 
+  pgadmin-data:
