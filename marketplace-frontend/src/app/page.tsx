@@ -94,6 +94,21 @@ export default function Home() {
 
   const [csrf, setCsrf] = useState("");
 
+  interface Product{
+    id: string;
+    name: string;
+    price: number;
+  }
+  const [products, setProducts] = useState<Product[]>([]);
+  const [showAddProductForm, setShowAddProductForm] = useState(false);
+  const [newProduct, setNewProduct] = useState<{
+    name: string;
+    price: string;
+  }>({
+    name: "",
+    price: ""
+  });
+
   const [authError, setAuthError] = useState(false);
   const [error, setError] = useState("");
 
@@ -220,6 +235,63 @@ export default function Home() {
     }
   };
 
+  const fetchProducts = async () => {
+    try{
+      const response = await fetch("http://localhost:8080/products/my", {
+        credentials: "include",
+      });
+      const data = await response.json();
+      setProducts(data);
+    } catch(err){
+      console.error("An error occured while fetching products: ", err);
+      setError("Failed to load products");
+    }
+  };
+
+  const handleAddProduct = async () => {
+    try {
+      const response = await fetch("http://localhost:8080/products", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": csrf,
+        },
+        body: JSON.stringify(newProduct),
+        credentials: "include",
+      });
+      const result = await response.json();
+      if (response.ok) {
+        setShowAddProductForm(false);
+        fetchProducts();
+      } else {
+        setError(result.errors || "Failed to add product.");
+      }
+    } catch (err) {
+      console.error("An error occurred while adding product:", err);
+      setError("An error occurred while adding product.");
+    }
+  };
+  
+  const handleDeleteProduct = async (id: string) => {
+    try {
+      const response = await fetch(`http://localhost:8080/products/${id}`, {
+        method: "DELETE",
+        headers: {
+          "X-CSRF-TOKEN": csrf,
+        },
+        credentials: "include",
+      });
+      if (response.ok) {
+        fetchProducts();
+      } else {
+        setError("Failed to delete product.");
+      }
+    } catch (err) {
+      console.error("An error occurred while deleting product:", err);
+      setError("An error occurred while deleting product.");
+    }
+  };
+
   const loadData = async () => {
     try {
       const response = await fetch("http://localhost:8080/test", {
@@ -257,6 +329,7 @@ export default function Home() {
         const data = await response.json();
         if (data.auth) {
           loadData();
+          fetchProducts();
         } else {
           setLogin(true);
         }
@@ -329,13 +402,13 @@ export default function Home() {
                 onClick={signin}
                 className="w-full bg-purple-800 hover:bg-purple-900 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
               >
-                Sing in
+                Sign in
               </button>
               <button
                 onClick={signup}
                 className="w-full bg-indigo-800 hover:bg-indigo-900 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
               >
-                Sing up
+                Sign up
               </button>
             </div>
           </div>
@@ -347,8 +420,73 @@ export default function Home() {
             onClick={logout}
             className="w-full bg-red-500/80 hover:bg-red-600/80 text-white font-semibold py-3 rounded-lg transition duration-200"
           >
-            Sing out
+            Sign out
           </button>
+          <div className="mt-8">
+            <h2 className="text-2xl font-bold mb-4">My Products</h2>
+            <button
+              onClick={() => setShowAddProductForm(true)}
+              className="mb-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+            >
+              Add Product
+            </button>
+            {products.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {products.map((product) => (
+                  <div key={product.id} className="bg-white/10 p-4 rounded-lg shadow-md">
+                    <h3 className="text-xl font-semibold">{product.name}</h3> 
+                    <p className="text-purple-400">${product.price}</p>
+                    <button
+                      onClick={() => handleDeleteProduct(product.id)}
+                      className="mt-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-lg transition duration-200"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400">No products found.</p>
+            )}
+            
+          </div>
+        </div>
+      )}
+      {showAddProductForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-[#f5f5f5]/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4">Add Product</h2>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Product Name"
+                value={newProduct.name}
+                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#f5f5f5]/60"
+              />
+              <input
+                type="number"
+                placeholder="Price"
+                value={newProduct.price}
+                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#f5f5f5]/60"
+              />
+              <div className="flex space-x-4">
+                <button
+                  onClick={handleAddProduct}
+                  className="w-full bg-purple-800 hover:bg-purple-900 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => setShowAddProductForm(false)}
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </main>
