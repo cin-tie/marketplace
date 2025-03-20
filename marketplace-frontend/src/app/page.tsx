@@ -292,9 +292,9 @@ export default function Home() {
     }
   };
 
-  const loadData = async () => {
+  const loadUserInfo = async () => {
     try {
-      const response = await fetch("http://localhost:8080/test", {
+      const response = await fetch("http://localhost:8080/userinfo/username", {
         credentials: "include",
       });
       const data = await response.text();
@@ -328,7 +328,7 @@ export default function Home() {
         });
         const data = await response.json();
         if (data.auth) {
-          loadData();
+          loadUserInfo();
           fetchProducts();
         } else {
           setLogin(true);
@@ -465,7 +465,7 @@ export default function Home() {
                 className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#f5f5f5]/60"
               />
               <input
-                type="number"
+                type="text"
                 placeholder="Price"
                 value={newProduct.price}
                 onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}

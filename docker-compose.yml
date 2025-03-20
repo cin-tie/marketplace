@@ -1,7 +1,7 @@
 services:
   frontend:
     build:
-      context: marketplace-frontend
+      context: ./marketplace-frontend
       dockerfile: Dockerfile
     ports:
       - "80:3000"
@@ -11,12 +11,27 @@ services:
     environment:
       POSTGRES_USER: postuser
       POSTGRES_PASSWORD: postpass
-      POSTGRES_DB: marketplace_users
+      POSTGRES_DB: marketplace
     ports:
-      - "15432:5432"
+      - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postuser -d marketplace"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:  
+    image: your-spring-boot-app
+    build:
+      context: ./marketplace-backend
+      dockerfile: dockerFile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - database
 
   pgadmin:
     container_name: pgadmin4_container
