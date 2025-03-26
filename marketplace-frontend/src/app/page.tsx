@@ -213,7 +213,7 @@ export default function Home() {
     } catch (err) {
       console.error("An error occured: ", err);
       setAuthError(true);
-      setError("An error occured while sing-in");
+      setError("An error occured while sing-up");
     }
   };
 

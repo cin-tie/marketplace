@@ -69,7 +69,6 @@ public class AuthController {
         } catch (UsernameAlreadyExistsException e) {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
-
         Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(signUpReq.username, signUpReq.password);
         Authentication authenticationResp = null;
         try {

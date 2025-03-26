@@ -1,8 +1,10 @@
 services:
   frontend:
     build:
-      context: marketplace-frontend
+      context: ./marketplace-frontend
       dockerfile: Dockerfile
+    depends_on:
+      - backend
     ports:
       - "80:3000"
 
@@ -11,12 +13,32 @@ services:
     environment:
       POSTGRES_USER: postuser
       POSTGRES_PASSWORD: postpass
-      POSTGRES_DB: marketplace_users
+      POSTGRES_DB: marketplace
     ports:
-      - "15432:5432"
+      - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postuser -d marketplace"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:  
+    image: your-spring-boot-app
+    build:
+      context: ./marketplace-backend
+      dockerfile: dockerFile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - database
+    environment:
+      - SPRING_MAIL_HOST=mailhog  # Указываем хост MailHog
+      - SPRING_MAIL_PORT=1025     # Порт SMTP MailHog
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=false
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=false=value
 
   pgadmin:
     container_name: pgadmin4_container
@@ -30,6 +52,15 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
 
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"  # SMTP-порт (для отправки писем)
+      - "8025:8025"  # Веб-интерфейс (http://localhost:8025)
+    restart: unless-stopped
+
 volumes:
   db-data:
+  postfix_data:
+  postfix_logs:
   pgadmin-data:
