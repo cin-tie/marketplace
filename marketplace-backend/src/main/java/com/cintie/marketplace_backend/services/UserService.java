@@ -7,6 +7,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.cintie.marketplace_backend.entities.UserEntity;
+import com.cintie.marketplace_backend.exceptions.EmailAlreadyExistsException;
 import com.cintie.marketplace_backend.exceptions.UsernameAlreadyExistsException;
 import com.cintie.marketplace_backend.repositories.UserRepository;
 
@@ -24,9 +25,12 @@ public class UserService implements UserDetailsService{
         UserEntity userEntity = userRepository.findByUsername(username).orElseThrow(()->new UsernameNotFoundException("Username not found"));
         return userEntity;
     }
-    public UserEntity createUser(UserEntity userEntity) throws UsernameAlreadyExistsException{
+    public UserEntity createUser(UserEntity userEntity) throws UsernameAlreadyExistsException, EmailAlreadyExistsException{
         if(userRepository.existsByUsername(userEntity.getUsername())){
             throw new UsernameAlreadyExistsException();
+        }
+        if(userRepository.existsByEmail(userEntity.getEmail())){
+            throw new EmailAlreadyExistsException();
         }
 
         userEntity.setPassword(passwordEncoder.encode(userEntity.getPassword()));

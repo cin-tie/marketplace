@@ -3,9 +3,11 @@ package com.cintie.marketplace_backend.controllers;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cintie.marketplace_backend.entities.UserEntity;
-import com.cintie.marketplace_backend.exceptions.UsernameAlreadyExistsException;
 import com.cintie.marketplace_backend.exceptions.ValidationException;
+import com.cintie.marketplace_backend.repositories.UserRepository;
+import com.cintie.marketplace_backend.services.EmailService;
 import com.cintie.marketplace_backend.services.UserService;
+import com.cintie.marketplace_backend.utils.TokenUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +29,7 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
@@ -36,7 +39,10 @@ public class AuthController {
 
     private AuthenticationManager authenticationManager;
     private PersistentTokenBasedRememberMeServices persistentTokenBasedRememberMeServices;
+    private UserRepository userRepository;
     private UserService userService;
+    private EmailService emailService;
+    private TokenUtils tokenUtils;
 
     private final SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
@@ -63,12 +69,15 @@ public class AuthController {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
 
-        UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").build();
+        UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").email(signUpReq.email).enabled(true).isEmailVerified(false).emailVerificationToken(tokenUtils.generateTokenWithTimestamp()).build();
         try {
             userEntity = userService.createUser(userEntity);
-        } catch (UsernameAlreadyExistsException e) {
+        } catch (Exception e) {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
+
+        emailService.sendVerificationEmail(userEntity);
+        /*
         Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(signUpReq.username, signUpReq.password);
         Authentication authenticationResp = null;
         try {
@@ -85,7 +94,7 @@ public class AuthController {
         if(signUpReq.rememberme){
             persistentTokenBasedRememberMeServices.loginSuccess(request, response, authenticationResp);
         }
-        
+        */
         return ResponseEntity.ok().body(new SignUpResp(true, null));
         
     }
@@ -98,7 +107,15 @@ public class AuthController {
         } catch(ValidationException e){
             return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Wrong credentials"}));
         }
-        
+
+        UserEntity user = userRepository.findByUsername(signInReq.username).orElse(null);
+        if (user == null) {
+            return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Wrong credentials"}));
+        }
+        if (!user.isEmailVerified()) {
+            return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Email not verified. Please check your email for verification link."}));
+        }
+
         Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(signInReq.username, signInReq.password);
         Authentication authenticationResp = null;
         try {
@@ -126,6 +143,37 @@ public class AuthController {
         return ResponseEntity.ok().body(new SignOutResp(true, null));
     }
 
+    @GetMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@RequestParam String token){
+        if(tokenUtils.isTokenExpired(token)){
+            return ResponseEntity.badRequest().body("Verification link has expired");
+        }
+
+        UserEntity user = userRepository.findByEmailVerificationToken(token).orElseThrow(() -> new RuntimeException("Invalid verification token"));
+
+        user.setEmailVerified(true);
+        user.setEmailVerificationToken(null);
+        userRepository.save(user);
+        return ResponseEntity.ok().body("Email verified succesfully");
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<?> resendVerification(@RequestParam String username) {
+        UserEntity user = userRepository.findByUsername(username).orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (user.isEmailVerified()) {
+            return ResponseEntity.badRequest().body("Email already verified");
+        }
+        
+        if (user.getEmailVerificationToken() == null) {
+            user.setEmailVerificationToken(tokenUtils.generateTokenWithTimestamp());
+            userRepository.save(user);
+        }
+        
+        emailService.sendVerificationEmail(user);
+        return ResponseEntity.ok("Verification email resent");
+    }
+
     private record SignInReq(String username, String password, boolean rememberme) {
         public void validate() throws ValidationException{
             
@@ -133,7 +181,7 @@ public class AuthController {
             if (username.length() < 6) {throw new ValidationException("Username must contain more than 6 characters");}
             if (username.length() > 256) {throw new ValidationException("Username must contain less than 256 characters");}
             if (!username.matches("^[a-zA-Z0-9_]+$")) {throw new ValidationException("Username must contain only letters, numbers or symbol underscore");}
-        
+
             if (password == null || password.isBlank()) {throw new ValidationException("Password is required");}
             if (password.length() < 8) {throw new ValidationException("Password must contain more than 8 characters");}
             if (password.length() > 256) {throw new ValidationException("Password must contain less than 256 characters");}
@@ -142,13 +190,16 @@ public class AuthController {
             if (!password.matches(".*[0-9].*")) {throw new ValidationException("Password must contain at least one number");}
         }
     }
-    private record SignUpReq(String username, String password, boolean rememberme) {
+    private record SignUpReq(String username, String email, String password, boolean rememberme) {
         public void validate() throws ValidationException{
             if (username == null || username.isBlank()) {throw new ValidationException("Username is required");}
             if (username.length() < 6) {throw new ValidationException("Username must contain more than 6 characters");}
             if (username.length() > 256) {throw new ValidationException("Username must contain less than 256 characters");}
             if (!username.matches("^[a-zA-Z0-9_]+$")) {throw new ValidationException("Username must contain only letters, numbers or symbol underscore");}
         
+            if(email == null || email.isBlank()){throw new ValidationException("Email is required");}
+            if (!email.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")) {throw new ValidationException("Invalid email address");}
+
             if (password == null || password.isBlank()) {throw new ValidationException("Password is required");}
             if (password.length() < 8) {throw new ValidationException("Password must contain more than 8 characters");}
             if (password.length() > 256) {throw new ValidationException("Password must contain less than 256 characters");}

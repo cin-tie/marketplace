@@ -86,68 +86,85 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 
 export default function Home() {
+  // Authentication states
   const [data, setData] = useState("");
   const [login, setLogin] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authError, setAuthError] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
+  // Form states
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
+  const [email, setEmail] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [csrf, setCsrf] = useState("");
 
-  interface Product{
+  // Product states
+  interface Product {
     id: string;
     name: string;
     price: number;
   }
   const [products, setProducts] = useState<Product[]>([]);
   const [showAddProductForm, setShowAddProductForm] = useState(false);
-  const [newProduct, setNewProduct] = useState<{
-    name: string;
-    price: string;
-  }>({
+  const [newProduct, setNewProduct] = useState({
     name: "",
     price: ""
   });
 
-  const [authError, setAuthError] = useState(false);
-  const [error, setError] = useState("");
-
+  // Validation states
   const [validationErrors, setValidationErrors] = useState({
     username: "",
     password: "",
+    email: "",
   });
 
-  const [rememberMe, setRememberMe] = useState(false);
+  // Validation schema
+  const userSchema = z.object({
+    username: z
+      .string()
+      .min(6, "Username must be at least 6 characters")
+      .max(256, "Username must be less than 256 characters")
+      .regex(
+        /^[a-zA-Z0-9_]+$/,
+        "Username can only contain letters, numbers and underscores",
+      ),
+    email: z
+      .string()
+      .email("Please enter a valid email address"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(256, "Password must be less than 256 characters")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[0-9]/, "Password must contain a number"),
+  });
 
-    const userSchema = z.object({
-      username: z
-        .string()
-        .min(6, "Username must contain more than 6 characters")
-        .max(256, "Username must contain less than 256 characters")
-        .regex(
-          /^[a-zA-Z0-9_]+$/,
-          "Username must contain only letters, numbers or symbol underscore",
-        ),
-
-      password: z
-        .string()
-        .min(8, "Password must contain more than 8 characters")
-        .max(256, "Password must contain less than 256 characters")
-        .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-        .regex(/[0-9]/, "Password must contain at least one number"),
-    });
-
+  // Validate inputs based on current form (sign in/sign up)
   const validateInputs = () => {
     try {
-      userSchema.parse({ username, password });
-      setValidationErrors({ username: "", password: "" });
+      // Create the appropriate validation schema based on whether we're signing up or signing in
+      const validationSchema = isSignUp 
+        ? userSchema // Use full schema with email for sign up
+        : userSchema.omit({ email: true }); // Omit email for sign in
+  
+      validationSchema.parse({ 
+        username, 
+        email, 
+        password 
+      });
+      
+      setValidationErrors({ username: "", password: "", email: "" });
       return true;
     } catch (err) {
       if (err instanceof z.ZodError) {
         const errors = {
           username: err.errors.find((e) => e.path[0] === "username")?.message || "",
           password: err.errors.find((e) => e.path[0] === "password")?.message || "",
+          email: err.errors.find((e) => e.path[0] === "email")?.message || "",
         };
         setValidationErrors(errors);
       }
@@ -155,6 +172,7 @@ export default function Home() {
     }
   };
 
+  // Authentication functions
   const signin = async () => {
     if (!validateInputs()) return;
 
@@ -173,16 +191,19 @@ export default function Home() {
         credentials: "include",
       });
       const result = await response.json();
+      
       if (result.success) {
         window.location.reload();
       } else {
         setAuthError(true);
         setError(result.errors[0]);
+        setSuccessMessage("");
       }
     } catch (err) {
-      console.error("An error occured: ", err);
+      console.error("Sign in error:", err);
       setAuthError(true);
-      setError("An error occured while sing-in");
+      setError("An error occurred while signing in");
+      setSuccessMessage("");
     }
   };
 
@@ -190,30 +211,44 @@ export default function Home() {
     if (!validateInputs()) return;
 
     try {
+      const csrfResp = await fetch("http://localhost:8080/auth/csrf", {
+        credentials: "include"
+      });
+      const { token } = await csrfResp.json();
       const response = await fetch("http://localhost:8080/auth/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-TOKEN": csrf,
+          "X-CSRF-TOKEN": token,
         },
         body: JSON.stringify({
           username: username,
+          email: email,
           password: password,
           rememberme: rememberMe,
         }),
         credentials: "include",
       });
       const result = await response.json();
+      
       if (result.success) {
-        window.location.reload();
+        setAuthError(false);
+        setError("");
+        setSuccessMessage("Registration successful! Please check your email to verify your account.");
+        // Clear form
+        setUsername("");
+        setPassword("");
+        setEmail("");
       } else {
         setAuthError(true);
         setError(result.errors[0]);
+        setSuccessMessage("");
       }
     } catch (err) {
-      console.error("An error occured: ", err);
+      console.error("Sign up error:", err);
       setAuthError(true);
-      setError("An error occured while sing-up");
+      setError("An error occurred while signing up");
+      setSuccessMessage("");
     }
   };
 
@@ -229,21 +264,22 @@ export default function Home() {
       });
       window.location.reload();
     } catch (err) {
-      console.error("An error occured: ", err);
+      console.error("Logout error:", err);
       setAuthError(true);
       setError("An error occurred during logout");
     }
   };
 
+  // Product functions
   const fetchProducts = async () => {
-    try{
+    try {
       const response = await fetch("http://localhost:8080/products/my", {
         credentials: "include",
       });
       const data = await response.json();
       setProducts(data);
-    } catch(err){
-      console.error("An error occured while fetching products: ", err);
+    } catch (err) {
+      console.error("Error fetching products:", err);
       setError("Failed to load products");
     }
   };
@@ -259,16 +295,18 @@ export default function Home() {
         body: JSON.stringify(newProduct),
         credentials: "include",
       });
-      const result = await response.json();
+      
       if (response.ok) {
         setShowAddProductForm(false);
+        setNewProduct({ name: "", price: "" });
         fetchProducts();
       } else {
-        setError(result.errors || "Failed to add product.");
+        const result = await response.json();
+        setError(result.errors || "Failed to add product");
       }
     } catch (err) {
-      console.error("An error occurred while adding product:", err);
-      setError("An error occurred while adding product.");
+      console.error("Error adding product:", err);
+      setError("An error occurred while adding product");
     }
   };
   
@@ -281,17 +319,19 @@ export default function Home() {
         },
         credentials: "include",
       });
+      
       if (response.ok) {
         fetchProducts();
       } else {
-        setError("Failed to delete product.");
+        setError("Failed to delete product");
       }
     } catch (err) {
-      console.error("An error occurred while deleting product:", err);
-      setError("An error occurred while deleting product.");
+      console.error("Error deleting product:", err);
+      setError("An error occurred while deleting product");
     }
   };
 
+  // Data loading functions
   const loadData = async () => {
     try {
       const response = await fetch("http://localhost:8080/test", {
@@ -300,12 +340,13 @@ export default function Home() {
       const data = await response.text();
       setData(data);
     } catch (err) {
-      console.error("An error occured: ", err);
+      console.error("Error loading data:", err);
       setAuthError(true);
-      setError("An error occurred while loading data.");
+      setError("An error occurred while loading data");
     }
   };
 
+  // Initialization effect
   useEffect(() => {
     const fetchCsrf = async () => {
       try {
@@ -315,9 +356,9 @@ export default function Home() {
         const data = await response.json();
         setCsrf(data.token);
       } catch (err) {
-        console.error("An error occured: ", err);
+        console.error("Error fetching CSRF token:", err);
         setAuthError(true);
-        setError("An error occurred while fetching CSRF token.");
+        setError("An error occurred while fetching CSRF token");
       }
     };
 
@@ -327,6 +368,7 @@ export default function Home() {
           credentials: "include",
         });
         const data = await response.json();
+        
         if (data.auth) {
           loadData();
           fetchProducts();
@@ -334,9 +376,9 @@ export default function Home() {
           setLogin(true);
         }
       } catch (err) {
-        console.error("An error occured: ", err);
+        console.error("Error fetching auth status:", err);
         setAuthError(true);
-        setError("An error occurred while fetching auth status.");
+        setError("An error occurred while fetching auth status");
       }
     };
 
@@ -345,100 +387,160 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-950 to-indigo-950 flex flex-col items-center justify-center text-white">
+    <main className="min-h-screen bg-gradient-to-br from-purple-950 to-indigo-950 flex flex-col items-center justify-center text-white p-4">
       {login ? (
-        <div className="bg-[#f5f5f5]/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
+        <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
           <div className="flex justify-center mb-8">
-            <header className="text-4xl font-bold text-[#f5f5f5]">
-              Authorization
-            </header>
+            <h1 className="text-4xl font-bold text-[#f5f5f5]">
+              {isSignUp ? "Create Account" : "Welcome Back"}
+            </h1>
           </div>
+          
+          {/* Success message */}
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-500/80 text-[#f5f5f5] rounded-lg text-center">
+              <p>{successMessage}</p>
+            </div>
+          )}
+          
+          {/* Error message */}
           {authError && (
             <div className="mb-4 p-3 bg-red-500/80 text-[#f5f5f5] rounded-lg text-center">
               <p>{error}</p>
             </div>
           )}
+          
           <div className="space-y-6">
+            {/* Email field (only for sign up) */}
+            {isSignUp && (
+              <div className="flex flex-col space-y-2">
+                <label className="text-lg font-medium">Email:</label>
+                <input
+                  className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                  type="email"
+                  value={email}
+                  placeholder="Enter your email"
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                {validationErrors.email && (
+                  <p className="text-red-500 text-sm">{validationErrors.email}</p>
+                )}
+              </div>
+            )}
+            
+            {/* Username field */}
             <div className="flex flex-col space-y-2">
               <label className="text-lg font-medium">Username:</label>
               <input
-                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#f5f5f5]/60"
+                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
                 type="text"
-                name="username"
-                placeholder="Enter username"
-                onChange={(event) => setUsername(event.target.value)}
+                value={username}
+                placeholder="Enter your username"
+                onChange={(e) => setUsername(e.target.value)}
               />
               {validationErrors.username && (
                 <p className="text-red-500 text-sm">{validationErrors.username}</p>
               )}
             </div>
+            
+            {/* Password field */}
             <div className="flex flex-col space-y-2">
               <label className="text-lg font-medium">Password:</label>
               <input
-                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#f5f5f5]/60"
+                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
                 type="password"
-                name="password"
-                placeholder="Enter password"
-                onChange={(event) => setPassword(event.target.value)}
+                value={password}
+                placeholder="Enter your password"
+                onChange={(e) => setPassword(e.target.value)}
               />
               {validationErrors.password && (
                 <p className="text-red-500 text-sm">{validationErrors.password}</p>
               )}
             </div>
+            
+            {/* Remember me checkbox */}
             <div className="flex items-center space-x-2 px-1">
               <input
-                className="w-5 h-5 rounded-md focus:ring-2 focus:ring-[#f5f5f5]/60 border border-gray-300/50 bg-white/20 checked:bg-purple-600 checked:border-purple-600"
+                className="w-5 h-5 rounded-md focus:ring-2 focus:ring-purple-500/60 border border-gray-300/50 bg-white/20 checked:bg-purple-600 checked:border-purple-600"
                 type="checkbox"
-                name="remember-me"
-                id="remember-me"
-                onChange={(event) => setRememberMe(event.target.checked)}
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
               />
-              <label className="text-[#f5f5f5]/50 text-[17px]">
+              <label className="text-[#f5f5f5]/70 text-[17px]">
                 Remember me
               </label>
             </div>
-            <div className="flex space-x-4">
+            
+            {/* Submit button */}
+            <button
+              onClick={isSignUp ? signup : signin}
+              className={`w-full ${
+                isSignUp 
+                  ? "bg-indigo-600 hover:bg-indigo-700" 
+                  : "bg-purple-600 hover:bg-purple-700"
+              } text-white font-semibold py-3 rounded-lg transition duration-200`}
+            >
+              {isSignUp ? "Sign Up" : "Sign In"}
+            </button>
+            
+            {/* Toggle between sign in/sign up */}
+            <div className="text-center">
               <button
-                onClick={signin}
-                className="w-full bg-purple-800 hover:bg-purple-900 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setAuthError(false);
+                  setError("");
+                  setSuccessMessage("");
+                }}
+                className="text-[#f5f5f5]/70 hover:text-[#f5f5f5] underline transition duration-200"
               >
-                Sign in
-              </button>
-              <button
-                onClick={signup}
-                className="w-full bg-indigo-800 hover:bg-indigo-900 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
-              >
-                Sign up
+                {isSignUp 
+                  ? "Already have an account? Sign In" 
+                  : "Don't have an account? Sign Up"}
               </button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full text-center">
-          <p className="text-2xl mb-6">{data}</p>
-          <button
-            onClick={logout}
-            className="w-full bg-red-500/80 hover:bg-red-600/80 text-white font-semibold py-3 rounded-lg transition duration-200"
-          >
-            Sign out
-          </button>
-          <div className="mt-8">
-            <h2 className="text-2xl font-bold mb-4">My Products</h2>
+        <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-4xl w-full">
+          {/* User dashboard header */}
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-[#f5f5f5]">Your Dashboard</h1>
             <button
-              onClick={() => setShowAddProductForm(true)}
-              className="mb-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+              onClick={logout}
+              className="bg-red-500/80 hover:bg-red-600/80 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
             >
-              Add Product
+              Sign Out
             </button>
+          </div>
+          
+          {/* Welcome message */}
+          <div className="text-center mb-8">
+            <p className="text-2xl text-purple-300">{data || "Welcome to your account"}</p>
+          </div>
+          
+          {/* Products section */}
+          <div className="mt-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">My Products</h2>
+              <button
+                onClick={() => setShowAddProductForm(true)}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+              >
+                Add Product
+              </button>
+            </div>
+            
+            {/* Products grid */}
             {products.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map((product) => (
-                  <div key={product.id} className="bg-white/10 p-4 rounded-lg shadow-md">
-                    <h3 className="text-xl font-semibold">{product.name}</h3> 
-                    <p className="text-purple-400">${product.price}</p>
+                  <div key={product.id} className="bg-white/10 p-4 rounded-lg shadow-md hover:shadow-lg transition duration-200">
+                    <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
+                    <p className="text-purple-400 text-lg mb-4">${product.price.toFixed(2)}</p>
                     <button
                       onClick={() => handleDeleteProduct(product.id)}
-                      className="mt-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-lg transition duration-200"
+                      className="w-full bg-red-500/80 hover:bg-red-600/80 text-white font-semibold py-1 px-2 rounded-lg transition duration-200"
                     >
                       Delete
                     </button>
@@ -446,41 +548,65 @@ export default function Home() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-400">No products found.</p>
+              <div className="text-center py-8">
+                <p className="text-gray-400 text-lg">No products found. Add your first product!</p>
+              </div>
             )}
-            
           </div>
         </div>
       )}
+      
+      {/* Add Product Modal */}
       {showAddProductForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-[#f5f5f5]/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold mb-4">Add Product</h2>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#1e1b4b]/90 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-6">Add New Product</h2>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/80 text-[#f5f5f5] rounded-lg">
+                <p>{error}</p>
+              </div>
+            )}
+            
             <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Product Name"
-                value={newProduct.name}
-                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#f5f5f5]/60"
-              />
-              <input
-                type="number"
-                placeholder="Price"
-                value={newProduct.price}
-                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#f5f5f5]/60"
-              />
-              <div className="flex space-x-4">
+              <div className="flex flex-col space-y-2">
+                <label className="text-lg font-medium">Product Name:</label>
+                <input
+                  type="text"
+                  placeholder="Enter product name"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                  className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                />
+              </div>
+              
+              <div className="flex flex-col space-y-2">
+                <label className="text-lg font-medium">Price:</label>
+                <input
+                  type="number"
+                  placeholder="Enter price"
+                  value={newProduct.price}
+                  onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                  className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              
+              <div className="flex space-x-4 pt-4">
                 <button
                   onClick={handleAddProduct}
-                  className="w-full bg-purple-800 hover:bg-purple-900 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition duration-200"
                 >
-                  Add
+                  Add Product
                 </button>
                 <button
-                  onClick={() => setShowAddProductForm(false)}
-                  className="w-full bg-gray-500 hover:bg-gray-600 text-[#f5f5f5] font-semibold py-3 rounded-lg transition duration-200"
+                  onClick={() => {
+                    setShowAddProductForm(false);
+                    setNewProduct({ name: "", price: "" });
+                    setError("");
+                  }}
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 rounded-lg transition duration-200"
                 >
                   Cancel
                 </button>

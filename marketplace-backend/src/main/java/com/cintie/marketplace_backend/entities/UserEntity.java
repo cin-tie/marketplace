@@ -41,6 +41,18 @@ public class UserEntity implements UserDetails {
 
     @Column(nullable = false)
     private String role;
+    
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean enabled = true;
+    
+    @Column(nullable = false)
+    private boolean isEmailVerified;
+    
+    @Column
+    private String emailVerificationToken;
 
     @OneToMany(mappedBy = "user")
     @JsonManagedReference

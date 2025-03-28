@@ -1,4 +1,4 @@
-services:
+services: 
   frontend:
     build:
       context: ./marketplace-frontend
@@ -7,6 +7,8 @@ services:
       - backend
     ports:
       - "80:3000"
+    networks:
+      - app-network
 
   database:
     image: postgres:alpine
@@ -24,7 +26,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
+    networks:
+      - app-network
+    
   backend:  
     image: your-spring-boot-app
     build:
@@ -32,17 +36,14 @@ services:
       dockerfile: dockerFile
     ports:
       - "8080:8080"
+    networks:
+      - app-network
     depends_on:
       - database
-    environment:
-      - SPRING_MAIL_HOST=mailhog  # Указываем хост MailHog
-      - SPRING_MAIL_PORT=1025     # Порт SMTP MailHog
-      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=false
-      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=false=value
 
   pgadmin:
     container_name: pgadmin4_container
-    image: dpage/pgadmin4:7
+    image: dpage/pgadmin4:9
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
@@ -50,17 +51,23 @@ services:
     ports:
       - "5050:80"
     volumes:
-      - pgadmin-data:/var/lib/pgadmin
-
+      - pgadmin-data:/var/li
+    networks:
+      - app-network
+    depends_on:
+      - database
   mailhog:
     image: mailhog/mailhog
     ports:
-      - "1025:1025"  # SMTP-порт (для отправки писем)
-      - "8025:8025"  # Веб-интерфейс (http://localhost:8025)
-    restart: unless-stopped
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - app-network
 
 volumes:
   db-data:
-  postfix_data:
-  postfix_logs:
   pgadmin-data:
+
+networks:
+  app-network:
+    driver: bridge
