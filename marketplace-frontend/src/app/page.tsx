@@ -100,6 +100,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [csrf, setCsrf] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   // Password reset states
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -134,7 +135,17 @@ export default function Home() {
   });
 
   // Validation schema
-  const userSchema = z.object({
+  const signinSchema = z.object({
+    usernameOrEmail: z.string()
+      .min(1, "Username or email is required"),
+    password: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .max(256, "Password must be less than 256 characters")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[0-9]/, "Password must contain a number")
+  });
+  const signupSchema = z.object({
     username: z
       .string()
       .min(6, "Username must be at least 6 characters")
@@ -215,17 +226,23 @@ export default function Home() {
       }
   
       // Rest of your existing validation for normal auth flow
-      const validationSchema = isSignUp 
-        ? userSchema
-        : userSchema.omit({ email: true });
-      
-      validationSchema.parse({ username, email, password });
-      setValidationErrors({
-        ...validationErrors,
-        username: "",
-        password: "",
-        email: ""
-      });
+      if(isSignUp){
+        signupSchema.parse({username, email, password});
+        setValidationErrors({
+          ...validationErrors,
+          username: "",
+          email: "",
+          password: ""
+        });
+      }
+      else{
+        signinSchema.parse({ usernameOrEmail: username, password });
+        setValidationErrors({
+          ...validationErrors,
+          username: "",
+          password: ""
+        });
+      }
       return true;
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -401,7 +418,7 @@ export default function Home() {
           "X-CSRF-TOKEN": csrf,
         },
         body: JSON.stringify({
-          username: username,
+          usernameOrEmail: username,
           password: password,
           rememberme: rememberMe,
         }),
@@ -676,15 +693,33 @@ export default function Home() {
               )}
               
               {resetStep === 3 && (
-                <div className="flex flex-col space-y-2">
+                <div className="flex flex-col space-y-2 relative">
                   <label className="text-lg font-medium">New Password:</label>
-                  <input
-                    className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
-                    type="password"
-                    value={newPassword}
-                    placeholder="Enter new password"
-                    onChange={(e) => setNewPassword(e.target.value)}
-                  />
+                  <div className="relative">
+                    <input
+                      className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60 pr-10"
+                      type={showPassword ? "text" : "password"}
+                      value={newPassword}
+                      placeholder="Enter new password"
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#f5f5f5]/70 hover:text-[#f5f5f5]"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                   {validationErrors.newPassword && (
                     <p className="text-red-500 text-sm">{validationErrors.newPassword}</p>
                   )}
@@ -747,7 +782,8 @@ export default function Home() {
             )}
             
             <div className="space-y-6">
-              {isSignUp && (
+              {isSignUp ? (
+                <>
                 <div className="flex flex-col space-y-2">
                   <label className="text-lg font-medium">Email:</label>
                   <input
@@ -761,36 +797,69 @@ export default function Home() {
                     <p className="text-red-500 text-sm">{validationErrors.email}</p>
                   )}
                 </div>
-              )}
-              
-              <div className="flex flex-col space-y-2">
-                <label className="text-lg font-medium">Username:</label>
+                <div className="flex flex-col space-y-2">
+                  <label className="text-lg font-medium">Username:</label>
+                  <input
+                    className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                    type="text"
+                    value={username}
+                    placeholder="Enter your username"
+                    onChange={(e) => setUsername(e.target.value)}
+                  />
+                  {validationErrors.username && (
+                    <p className="text-red-500 text-sm">{validationErrors.username}</p>
+                  )}
+              </div>
+                </>
+              ):(
+                <div className="flex flex-col space-y-2">
+                <label className="text-lg font-medium">Username or email:</label>
                 <input
                   className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
                   type="text"
                   value={username}
-                  placeholder="Enter your username"
+                  placeholder="Enter your username or email"
                   onChange={(e) => setUsername(e.target.value)}
                 />
                 {validationErrors.username && (
                   <p className="text-red-500 text-sm">{validationErrors.username}</p>
                 )}
               </div>
+              )}
               
-              <div className="flex flex-col space-y-2">
+              
+              <div className="flex flex-col space-y-2 relative">
                 <label className="text-lg font-medium">Password:</label>
-                <input
-                  className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
-                  type="password"
-                  value={password}
-                  placeholder="Enter your password"
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60 pr-10"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    placeholder="Enter your password"
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#f5f5f5]/70 hover:text-[#f5f5f5]"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
                 {validationErrors.password && (
                   <p className="text-red-500 text-sm">{validationErrors.password}</p>
                 )}
-              </div>
-              
+              </div>                                  
+              {!isSignUp && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <input
@@ -805,8 +874,8 @@ export default function Home() {
                 </div>
                 
                 <button
-                  onClick={() => {
-                    setShowForgotPassword(true);
+                onClick={() => {
+                  setShowForgotPassword(true);
                     setIsSignUp(false);
                     setAuthError(false);
                     setError("");
@@ -817,12 +886,13 @@ export default function Home() {
                   Forgot password?
                 </button>
               </div>
+              )}
               
               <button
                 onClick={isSignUp ? signup : signin}
                 className={`w-full ${
                   isSignUp 
-                    ? "bg-indigo-600 hover:bg-indigo-700" 
+                    ? "bg-purple-600 hover:bg-purple-700" 
                     : "bg-purple-600 hover:bg-purple-700"
                 } text-white font-semibold py-3 rounded-lg transition duration-200`}
               >

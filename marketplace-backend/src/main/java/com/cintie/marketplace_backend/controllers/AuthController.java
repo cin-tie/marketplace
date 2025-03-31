@@ -107,15 +107,18 @@ public class AuthController {
             return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Wrong credentials"}));
         }
 
-        UserEntity user = userRepository.findByUsername(signInReq.username).orElse(null);
+        UserEntity user = userRepository.findByUsername(signInReq.usernameOrEmail())
+            .or(() -> userRepository.findByEmail(signInReq.usernameOrEmail()))
+            .orElse(null);
+
         if (user == null) {
-            return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Wrong credentials"}));
+            return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Invalid credentials"}));
         }
         if (!user.isEmailVerified()) {
             return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Email not verified. Please check your email for verification link."}));
         }
 
-        Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(signInReq.username, signInReq.password);
+        Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(user.getUsername(), signInReq.password);
         Authentication authenticationResp = null;
         try {
             authenticationResp = authenticationManager.authenticate(authenticationReq);
@@ -142,13 +145,11 @@ public class AuthController {
         return ResponseEntity.ok().body(new SignOutResp(true, null));
     }
 
-    private record SignInReq(String username, String password, boolean rememberme) {
+    private record SignInReq(String usernameOrEmail, String password, boolean rememberme) {
         public void validate() throws ValidationException{
             
-            if (username == null || username.isBlank()) {throw new ValidationException("Username is required");}
-            if (username.length() < 6) {throw new ValidationException("Username must contain more than 6 characters");}
-            if (username.length() > 256) {throw new ValidationException("Username must contain less than 256 characters");}
-            if (!username.matches("^[a-zA-Z0-9_]+$")) {throw new ValidationException("Username must contain only letters, numbers or symbol underscore");}
+            if (usernameOrEmail == null || usernameOrEmail.isBlank()) {throw new ValidationException("Username or email is required");}
+            
 
             if (password == null || password.isBlank()) {throw new ValidationException("Password is required");}
             if (password.length() < 8) {throw new ValidationException("Password must contain more than 8 characters");}
