@@ -101,6 +101,15 @@ export default function Home() {
   const [rememberMe, setRememberMe] = useState(false);
   const [csrf, setCsrf] = useState("");
 
+  // Password reset states
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [resetStep, setResetStep] = useState(1); // 1: email, 2: code, 3: new password
+  const [canResendCode, setCanResendCode] = useState(true);
+  const [resendTimer, setResendTimer] = useState(0);
+
   // Product states
   interface Product {
     id: string;
@@ -119,6 +128,9 @@ export default function Home() {
     username: "",
     password: "",
     email: "",
+    resetEmail: "",
+    resetCode: "",
+    newPassword: ""
   });
 
   // Validation schema
@@ -143,36 +155,241 @@ export default function Home() {
       .regex(/[0-9]/, "Password must contain a number"),
   });
 
-  // Validate inputs based on current form (sign in/sign up)
+  const resetPasswordSchema = z.object({
+    resetEmail: z.string().email("Please enter a valid email address"),
+    resetCode: z.string().length(6, "Code must be 6 digits"),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(256, "Password must be less than 256 characters")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[0-9]/, "Password must contain a number"),
+  });
+  
+  // Create partial schemas for each step
+  const resetStepSchemas = {
+    1: resetPasswordSchema.pick({ resetEmail: true }),
+    2: resetPasswordSchema.pick({ resetCode: true }),
+    3: resetPasswordSchema.pick({ newPassword: true }),
+  };
+
+  // Timer for resend code functionality
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    } else if (resendTimer === 0 && !canResendCode) {
+      setCanResendCode(true);
+    }
+    
+    return () => clearInterval(interval);
+  }, [resendTimer, canResendCode]);
+
+  // Validate inputs based on current form
   const validateInputs = () => {
     try {
-      // Create the appropriate validation schema based on whether we're signing up or signing in
-      const validationSchema = isSignUp 
-        ? userSchema // Use full schema with email for sign up
-        : userSchema.omit({ email: true }); // Omit email for sign in
+      if (showForgotPassword) {
+        // Validate based on current step
+        const currentSchema = resetStepSchemas[resetStep as keyof typeof resetStepSchemas];
+        const validationData = {
+          resetEmail: resetStep === 1 ? resetEmail : undefined,
+          resetCode: resetStep === 2 ? resetCode : undefined,
+          newPassword: resetStep === 3 ? newPassword : undefined,
+        };
+        
+        currentSchema.parse(validationData);
+        
+        // Clear relevant errors
+        setValidationErrors(prev => ({
+          ...prev,
+          resetEmail: resetStep === 1 ? "" : prev.resetEmail,
+          resetCode: resetStep === 2 ? "" : prev.resetCode,
+          newPassword: resetStep === 3 ? "" : prev.newPassword,
+        }));
+        
+        return true;
+      }
   
-      validationSchema.parse({ 
-        username, 
-        email, 
-        password 
-      });
+      // Rest of your existing validation for normal auth flow
+      const validationSchema = isSignUp 
+        ? userSchema
+        : userSchema.omit({ email: true });
       
-      setValidationErrors({ username: "", password: "", email: "" });
+      validationSchema.parse({ username, email, password });
+      setValidationErrors({
+        ...validationErrors,
+        username: "",
+        password: "",
+        email: ""
+      });
       return true;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        const errors = {
-          username: err.errors.find((e) => e.path[0] === "username")?.message || "",
-          password: err.errors.find((e) => e.path[0] === "password")?.message || "",
-          email: err.errors.find((e) => e.path[0] === "email")?.message || "",
-        };
-        setValidationErrors(errors);
+        const errors = err.errors.reduce((acc, curr) => {
+          const path = curr.path[0];
+          return { ...acc, [path]: curr.message };
+        }, {} as Record<string, string>);
+        
+        setValidationErrors(prev => ({
+          ...prev,
+          ...errors
+        }));
       }
       return false;
     }
   };
 
-  // Authentication functions
+  // Password reset functions
+  const initiatePasswordReset = async () => {
+    if (!validateInputs()) return;
+  
+    try {
+      // 1. Get fresh CSRF token
+      const csrfResp = await fetch("http://localhost:8080/auth/csrf", {
+        credentials: "include"
+      });
+      
+      if (!csrfResp.ok) throw new Error("Failed to get CSRF token");
+      
+      const { token } = await csrfResp.json();
+      setCsrf(token);
+  
+      // 2. Make the reset request with proper JSON body
+      const response = await fetch("http://localhost:8080/auth/password-reset/initiate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": token,
+        },
+        body: JSON.stringify({ email: resetEmail }),
+        credentials: "include",
+      });
+  
+      // 3. Handle response
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Request failed");
+      }
+  
+      const result = await response.text();
+      setResetStep(2);
+      setSuccessMessage(result || "Reset code sent successfully");
+      setError("");
+      setCanResendCode(false);
+      setResendTimer(60); // Start 1-minute cooldown
+      
+    } catch (err) {
+      console.error("Password reset error:", err);
+      setError(err instanceof Error ? err.message : "Failed to initiate reset");
+      setSuccessMessage("");
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!canResendCode) return;
+    
+    try {
+      const response = await fetch("http://localhost:8080/auth/password-reset/initiate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": csrf,
+        },
+        body: JSON.stringify({ email: resetEmail }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to resend code");
+      }
+
+      setCanResendCode(false);
+      setResendTimer(60); // 1 minute cooldown
+      setSuccessMessage("Reset code resent successfully");
+      setError("");
+      
+    } catch (err) {
+      console.error("Resend code error:", err);
+      setError(err instanceof Error ? err.message : "Failed to resend code");
+    }
+  };
+
+  const validateResetCode = async () => {
+    if (!validateInputs()) return;
+
+    try {
+      const response = await fetch("http://localhost:8080/auth/password-reset/validate-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": csrf,
+        },
+        body: JSON.stringify({ 
+          email: resetEmail,
+          code: resetCode 
+        }),
+        credentials: "include",
+      });
+      
+      if (response.ok) {
+        setResetStep(3);
+        setAuthError(false);
+        setError("");
+        setSuccessMessage("Code verified. Please enter your new password");
+      } else {
+        const result = await response.json();
+        throw new Error(result.message || "Invalid reset code");
+      }
+    } catch (err) {
+      setAuthError(true);
+      setError(err instanceof Error ? err.message : "Failed to validate reset code");
+      setSuccessMessage("");
+    }
+  };
+
+  const completePasswordReset = async () => {
+    if (!validateInputs()) return;
+
+    try {
+      const response = await fetch("http://localhost:8080/auth/password-reset/complete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": csrf,
+        },
+        body: JSON.stringify({ 
+          email: resetEmail,
+          code: resetCode,
+          newPassword: newPassword 
+        }),
+        credentials: "include",
+      });
+      
+      if (response.ok) {
+        setShowForgotPassword(false);
+        setResetStep(1);
+        setResetEmail("");
+        setResetCode("");
+        setNewPassword("");
+        setAuthError(false);
+        setError("");
+        setSuccessMessage("Password reset successfully. You can now sign in.");
+      } else {
+        const result = await response.json();
+        throw new Error(result.message || "Failed to reset password");
+      }
+    } catch (err) {
+      setAuthError(true);
+      setError(err instanceof Error ? err.message : "Failed to complete password reset");
+      setSuccessMessage("");
+    }
+  };
+  // Authentication functions (existing)
   const signin = async () => {
     if (!validateInputs()) return;
 
@@ -235,7 +452,6 @@ export default function Home() {
         setAuthError(false);
         setError("");
         setSuccessMessage("Registration successful! Please check your email to verify your account.");
-        // Clear form
         setUsername("");
         setPassword("");
         setEmail("");
@@ -270,7 +486,7 @@ export default function Home() {
     }
   };
 
-  // Product functions
+  // Product functions (existing)
   const fetchProducts = async () => {
     try {
       const response = await fetch("http://localhost:8080/products/my", {
@@ -331,7 +547,7 @@ export default function Home() {
     }
   };
 
-  // Data loading functions
+  // Data loading functions (existing)
   const loadData = async () => {
     try {
       const response = await fetch("http://localhost:8080/test", {
@@ -346,7 +562,7 @@ export default function Home() {
     }
   };
 
-  // Initialization effect
+  // Initialization effect (existing)
   useEffect(() => {
     const fetchCsrf = async () => {
       try {
@@ -389,126 +605,257 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-950 to-indigo-950 flex flex-col items-center justify-center text-white p-4">
       {login ? (
-        <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
-          <div className="flex justify-center mb-8">
-            <h1 className="text-4xl font-bold text-[#f5f5f5]">
-              {isSignUp ? "Create Account" : "Welcome Back"}
-            </h1>
-          </div>
-          
-          {/* Success message */}
-          {successMessage && (
-            <div className="mb-4 p-3 bg-green-500/80 text-[#f5f5f5] rounded-lg text-center">
-              <p>{successMessage}</p>
+        showForgotPassword ? (
+          // Password reset flow
+          <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
+            <div className="flex justify-center mb-8">
+              <h1 className="text-3xl font-bold text-[#f5f5f5]">
+                {resetStep === 1 ? "Reset Password" : 
+                 resetStep === 2 ? "Enter Reset Code" : 
+                 "New Password"}
+              </h1>
             </div>
-          )}
-          
-          {/* Error message */}
-          {authError && (
-            <div className="mb-4 p-3 bg-red-500/80 text-[#f5f5f5] rounded-lg text-center">
-              <p>{error}</p>
-            </div>
-          )}
-          
-          <div className="space-y-6">
-            {/* Email field (only for sign up) */}
-            {isSignUp && (
-              <div className="flex flex-col space-y-2">
-                <label className="text-lg font-medium">Email:</label>
-                <input
-                  className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
-                  type="email"
-                  value={email}
-                  placeholder="Enter your email"
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                {validationErrors.email && (
-                  <p className="text-red-500 text-sm">{validationErrors.email}</p>
-                )}
+            
+            {successMessage && (
+              <div className="mb-4 p-3 bg-green-500/80 text-[#f5f5f5] rounded-lg text-center">
+                <p>{successMessage}</p>
               </div>
             )}
             
-            {/* Username field */}
-            <div className="flex flex-col space-y-2">
-              <label className="text-lg font-medium">Username:</label>
-              <input
-                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
-                type="text"
-                value={username}
-                placeholder="Enter your username"
-                onChange={(e) => setUsername(e.target.value)}
-              />
-              {validationErrors.username && (
-                <p className="text-red-500 text-sm">{validationErrors.username}</p>
+            {authError && (
+              <div className="mb-4 p-3 bg-red-500/80 text-[#f5f5f5] rounded-lg text-center">
+                <p>{error}</p>
+              </div>
+            )}
+            
+            <div className="space-y-6">
+              {resetStep === 1 && (
+                <div className="flex flex-col space-y-2">
+                  <label className="text-lg font-medium">Email:</label>
+                  <input
+                    className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                    type="email"
+                    value={resetEmail}
+                    placeholder="Enter your email"
+                    onChange={(e) => setResetEmail(e.target.value)}
+                  />
+                  {validationErrors.resetEmail && (
+                    <p className="text-red-500 text-sm">{validationErrors.resetEmail}</p>
+                  )}
+                </div>
               )}
-            </div>
-            
-            {/* Password field */}
-            <div className="flex flex-col space-y-2">
-              <label className="text-lg font-medium">Password:</label>
-              <input
-                className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
-                type="password"
-                value={password}
-                placeholder="Enter your password"
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              {validationErrors.password && (
-                <p className="text-red-500 text-sm">{validationErrors.password}</p>
+              
+              {resetStep === 2 && (
+                <>
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-lg font-medium">Reset Code:</label>
+                    <input
+                      className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                      type="text"
+                      value={resetCode}
+                      placeholder="Enter 6-digit code"
+                      onChange={(e) => setResetCode(e.target.value)}
+                    />
+                    {validationErrors.resetCode && (
+                      <p className="text-red-500 text-sm">{validationErrors.resetCode}</p>
+                    )}
+                  </div>
+                  
+                  <div className="text-center">
+                    <button
+                      onClick={handleResendCode}
+                      disabled={!canResendCode}
+                      className={`text-[#f5f5f5]/70 hover:text-[#f5f5f5] underline transition duration-200 ${
+                        !canResendCode ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {canResendCode ? "Resend Code" : `Resend available in ${resendTimer}s`}
+                    </button>
+                  </div>
+                </>
               )}
-            </div>
-            
-            {/* Remember me checkbox */}
-            <div className="flex items-center space-x-2 px-1">
-              <input
-                className="w-5 h-5 rounded-md focus:ring-2 focus:ring-purple-500/60 border border-gray-300/50 bg-white/20 checked:bg-purple-600 checked:border-purple-600"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              <label className="text-[#f5f5f5]/70 text-[17px]">
-                Remember me
-              </label>
-            </div>
-            
-            {/* Submit button */}
-            <button
-              onClick={isSignUp ? signup : signin}
-              className={`w-full ${
-                isSignUp 
-                  ? "bg-indigo-600 hover:bg-indigo-700" 
-                  : "bg-purple-600 hover:bg-purple-700"
-              } text-white font-semibold py-3 rounded-lg transition duration-200`}
-            >
-              {isSignUp ? "Sign Up" : "Sign In"}
-            </button>
-            
-            {/* Toggle between sign in/sign up */}
-            <div className="text-center">
-              <button
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  setAuthError(false);
-                  setError("");
-                  setSuccessMessage("");
-                }}
-                className="text-[#f5f5f5]/70 hover:text-[#f5f5f5] underline transition duration-200"
-              >
-                {isSignUp 
-                  ? "Already have an account? Sign In" 
-                  : "Don't have an account? Sign Up"}
-              </button>
+              
+              {resetStep === 3 && (
+                <div className="flex flex-col space-y-2">
+                  <label className="text-lg font-medium">New Password:</label>
+                  <input
+                    className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                    type="password"
+                    value={newPassword}
+                    placeholder="Enter new password"
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                  {validationErrors.newPassword && (
+                    <p className="text-red-500 text-sm">{validationErrors.newPassword}</p>
+                  )}
+                </div>
+              )}
+              
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => {
+                    if (resetStep === 1) initiatePasswordReset();
+                    else if (resetStep === 2) validateResetCode();
+                    else if (resetStep === 3) completePasswordReset();
+                  }}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition duration-200"
+                >
+                  {resetStep === 1 ? "Send Reset Code" : 
+                   resetStep === 2 ? "Verify Code" :
+                   "Reset Password"}
+                </button>
+              </div>
+              
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setResetStep(1);
+                    setResetEmail("");
+                    setResetCode("");
+                    setNewPassword("");
+                    setAuthError(false);
+                    setError("");
+                    setSuccessMessage("");
+                  }}
+                  className="text-[#f5f5f5]/70 hover:text-[#f5f5f5] underline transition duration-200"
+                >
+                  Back to Sign In
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          // Normal auth flow
+          <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">
+            <div className="flex justify-center mb-8">
+              <h1 className="text-3xl font-bold text-[#f5f5f5]">
+                {isSignUp ? "Create Account" : "Welcome Back"}
+              </h1>
+            </div>
+            
+            {successMessage && (
+              <div className="mb-4 p-3 bg-green-500/80 text-[#f5f5f5] rounded-lg text-center">
+                <p>{successMessage}</p>
+              </div>
+            )}
+            
+            {authError && (
+              <div className="mb-4 p-3 bg-red-500/80 text-[#f5f5f5] rounded-lg text-center">
+                <p>{error}</p>
+              </div>
+            )}
+            
+            <div className="space-y-6">
+              {isSignUp && (
+                <div className="flex flex-col space-y-2">
+                  <label className="text-lg font-medium">Email:</label>
+                  <input
+                    className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                    type="email"
+                    value={email}
+                    placeholder="Enter your email"
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  {validationErrors.email && (
+                    <p className="text-red-500 text-sm">{validationErrors.email}</p>
+                  )}
+                </div>
+              )}
+              
+              <div className="flex flex-col space-y-2">
+                <label className="text-lg font-medium">Username:</label>
+                <input
+                  className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                  type="text"
+                  value={username}
+                  placeholder="Enter your username"
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+                {validationErrors.username && (
+                  <p className="text-red-500 text-sm">{validationErrors.username}</p>
+                )}
+              </div>
+              
+              <div className="flex flex-col space-y-2">
+                <label className="text-lg font-medium">Password:</label>
+                <input
+                  className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                  type="password"
+                  value={password}
+                  placeholder="Enter your password"
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                {validationErrors.password && (
+                  <p className="text-red-500 text-sm">{validationErrors.password}</p>
+                )}
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <input
+                    className="w-5 h-5 rounded-md focus:ring-2 focus:ring-purple-500/60 border border-gray-300/50 bg-white/20 checked:bg-purple-600 checked:border-purple-600"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <label className="text-[#f5f5f5]/70 text-[17px]">
+                    Remember me
+                  </label>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setShowForgotPassword(true);
+                    setIsSignUp(false);
+                    setAuthError(false);
+                    setError("");
+                    setSuccessMessage("");
+                  }}
+                  className="text-[#f5f5f5]/70 hover:text-[#f5f5f5] underline text-sm transition duration-200"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              
+              <button
+                onClick={isSignUp ? signup : signin}
+                className={`w-full ${
+                  isSignUp 
+                    ? "bg-indigo-600 hover:bg-indigo-700" 
+                    : "bg-purple-600 hover:bg-purple-700"
+                } text-white font-semibold py-3 rounded-lg transition duration-200`}
+              >
+                {isSignUp ? "Sign Up" : "Sign In"}
+              </button>
+              
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setAuthError(false);
+                    setError("");
+                    setSuccessMessage("");
+                  }}
+                  className="text-[#f5f5f5]/70 hover:text-[#f5f5f5] underline transition duration-200"
+                >
+                  {isSignUp 
+                    ? "Already have an account? Sign In" 
+                    : "Don't have an account? Sign Up"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
       ) : (
+        // Dashboard (existing)
         <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-4xl w-full">
           {/* User dashboard header */}
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-[#f5f5f5]">Your Dashboard</h1>
             <button
               onClick={logout}
-              className="bg-red-500/80 hover:bg-red-600/80 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
             >
               Sign Out
             </button>
@@ -556,7 +903,7 @@ export default function Home() {
         </div>
       )}
       
-      {/* Add Product Modal */}
+      {/* Add Product Modal (existing) */}
       {showAddProductForm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-[#1e1b4b]/90 backdrop-blur-md rounded-lg shadow-2xl p-8 max-w-md w-full">

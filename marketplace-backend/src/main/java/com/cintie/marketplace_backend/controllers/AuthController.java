@@ -29,7 +29,6 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
@@ -76,7 +75,7 @@ public class AuthController {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
 
-        emailService.sendVerificationEmail(userEntity);
+        emailService.sendVerificationEmail(userEntity.getEmail(), userEntity.getEmailVerificationToken());
         /*
         Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(signUpReq.username, signUpReq.password);
         Authentication authenticationResp = null;
@@ -141,37 +140,6 @@ public class AuthController {
         persistentTokenBasedRememberMeServices.logout(request, response, authentication);
         securityContextLogoutHandler.logout(request, response, authentication);
         return ResponseEntity.ok().body(new SignOutResp(true, null));
-    }
-
-    @GetMapping("/verify-email")
-    public ResponseEntity<?> verifyEmail(@RequestParam String token){
-        if(tokenUtils.isTokenExpired(token)){
-            return ResponseEntity.badRequest().body("Verification link has expired");
-        }
-
-        UserEntity user = userRepository.findByEmailVerificationToken(token).orElseThrow(() -> new RuntimeException("Invalid verification token"));
-
-        user.setEmailVerified(true);
-        user.setEmailVerificationToken(null);
-        userRepository.save(user);
-        return ResponseEntity.ok().body("Email verified succesfully");
-    }
-
-    @PostMapping("/resend-verification")
-    public ResponseEntity<?> resendVerification(@RequestParam String username) {
-        UserEntity user = userRepository.findByUsername(username).orElseThrow(() -> new RuntimeException("User not found"));
-        
-        if (user.isEmailVerified()) {
-            return ResponseEntity.badRequest().body("Email already verified");
-        }
-        
-        if (user.getEmailVerificationToken() == null) {
-            user.setEmailVerificationToken(tokenUtils.generateTokenWithTimestamp());
-            userRepository.save(user);
-        }
-        
-        emailService.sendVerificationEmail(user);
-        return ResponseEntity.ok("Verification email resent");
     }
 
     private record SignInReq(String username, String password, boolean rememberme) {

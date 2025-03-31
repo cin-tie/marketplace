@@ -5,7 +5,6 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
-import com.cintie.marketplace_backend.entities.UserEntity;
 
 
 @Service
@@ -23,14 +22,27 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
-    public void sendVerificationEmail(UserEntity user){
-        String verificationUrl = baseUrl + "/auth/verify-email?token=" + user.getEmailVerificationToken();
+    public void sendVerificationEmail(String to, String token){
+        String verificationUrl = baseUrl + "/auth/verify-email?token=" + token;
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromEmail);
-        message.setTo(user.getEmail());
+        message.setTo(to);
         message.setSubject("Verify your email address");
         message.setText("Please click the folowing link to verify your email: " + verificationUrl);
+        mailSender.send(message);
+    }
+
+    public void sendPasswordResetCode(String to, String resetCode){
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(to);
+        message.setSubject("Password Reset Code");
+        message.setText(String.format(
+            "Your password reset code is: %s\n\n" +
+            "This code will expire in 10 minutes.", 
+            resetCode
+        ));
         mailSender.send(message);
     }
 

@@ -45,6 +45,7 @@ public class UserEntity implements UserDetails {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Builder.Default
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean enabled = true;
     
