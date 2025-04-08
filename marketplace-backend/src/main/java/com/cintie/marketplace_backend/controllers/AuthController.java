@@ -68,7 +68,7 @@ public class AuthController {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
 
-        UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").email(signUpReq.email).enabled(true).isEmailVerified(false).emailVerificationToken(tokenUtils.generateTokenWithTimestamp()).build();
+        UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").email(signUpReq.email).telegram(signUpReq.telegram).enabled(true).isEmailVerified(false).emailVerificationToken(tokenUtils.generateTokenWithTimestamp()).build();
         try {
             userEntity = userService.createUser(userEntity);
         } catch (Exception e) {
@@ -159,7 +159,7 @@ public class AuthController {
             if (!password.matches(".*[0-9].*")) {throw new ValidationException("Password must contain at least one number");}
         }
     }
-    private record SignUpReq(String username, String email, String password, boolean rememberme) {
+    private record SignUpReq(String username, String email, String telegram, String password, boolean rememberme) {
         public void validate() throws ValidationException{
             if (username == null || username.isBlank()) {throw new ValidationException("Username is required");}
             if (username.length() < 6) {throw new ValidationException("Username must contain more than 6 characters");}
@@ -168,6 +168,9 @@ public class AuthController {
         
             if(email == null || email.isBlank()){throw new ValidationException("Email is required");}
             if (!email.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")) {throw new ValidationException("Invalid email address");}
+
+            if(telegram == null || telegram.isBlank()){throw new ValidationException("Telegram is required");}
+            if (!telegram.matches("^@[a-zA-Z0-9_]{5,32}$")) {throw new ValidationException("Invalid telegram id");}
 
             if (password == null || password.isBlank()) {throw new ValidationException("Password is required");}
             if (password.length() < 8) {throw new ValidationException("Password must contain more than 8 characters");}

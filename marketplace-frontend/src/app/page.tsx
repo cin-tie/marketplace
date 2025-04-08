@@ -98,6 +98,7 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [telegram, setTelegram] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [csrf, setCsrf] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -129,6 +130,7 @@ export default function Home() {
     username: "",
     password: "",
     email: "",
+    telegram: "",
     resetEmail: "",
     resetCode: "",
     newPassword: ""
@@ -157,6 +159,10 @@ export default function Home() {
     email: z
       .string()
       .email("Please enter a valid email address"),
+    telegram: z
+      .string()
+      .min(6, "Telegram must be at least 6 characters")
+      .regex(/[@]/, "Telegram must contain @"),
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")
@@ -227,11 +233,12 @@ export default function Home() {
   
       // Rest of your existing validation for normal auth flow
       if(isSignUp){
-        signupSchema.parse({username, email, password});
+        signupSchema.parse({username, email, telegram, password});
         setValidationErrors({
           ...validationErrors,
           username: "",
           email: "",
+          telegram: "",
           password: ""
         });
       }
@@ -458,6 +465,7 @@ export default function Home() {
         body: JSON.stringify({
           username: username,
           email: email,
+          telegram: telegram,
           password: password,
           rememberme: rememberMe,
         }),
@@ -472,6 +480,7 @@ export default function Home() {
         setUsername("");
         setPassword("");
         setEmail("");
+        setTelegram("");
       } else {
         setAuthError(true);
         setError(result.errors[0]);
@@ -785,6 +794,19 @@ export default function Home() {
               {isSignUp ? (
                 <>
                 <div className="flex flex-col space-y-2">
+                  <label className="text-lg font-medium">Username:</label>
+                  <input
+                    className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                    type="text"
+                    value={username}
+                    placeholder="Enter your username"
+                    onChange={(e) => setUsername(e.target.value)}
+                  />
+                  {validationErrors.username && (
+                    <p className="text-red-500 text-sm">{validationErrors.username}</p>
+                  )}
+              </div>
+                <div className="flex flex-col space-y-2">
                   <label className="text-lg font-medium">Email:</label>
                   <input
                     className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
@@ -797,17 +819,17 @@ export default function Home() {
                     <p className="text-red-500 text-sm">{validationErrors.email}</p>
                   )}
                 </div>
-                <div className="flex flex-col space-y-2">
-                  <label className="text-lg font-medium">Username:</label>
+              <div className="flex flex-col space-y-2">
+                  <label className="text-lg font-medium">Telegram:</label>
                   <input
                     className="w-full p-3 rounded-lg bg-[#f5f5f5]/20 placeholder-[#f5f5f5]/50 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-purple-500/60"
                     type="text"
-                    value={username}
-                    placeholder="Enter your username"
-                    onChange={(e) => setUsername(e.target.value)}
+                    value={telegram}
+                    placeholder="Enter your telegram"
+                    onChange={(e) => setTelegram(e.target.value)}
                   />
-                  {validationErrors.username && (
-                    <p className="text-red-500 text-sm">{validationErrors.username}</p>
+                  {validationErrors.telegram && (
+                    <p className="text-red-500 text-sm">{validationErrors.telegram}</p>
                   )}
               </div>
                 </>

@@ -45,6 +45,9 @@ public class UserEntity implements UserDetails {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(nullable = false, unique = true)
+    private String telegram;
+
     @Builder.Default
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean enabled = true;

@@ -3,7 +3,7 @@ services:
     build:
       context: ./marketplace-frontend
       dockerfile: Dockerfile
-    depends_on:
+    depends_on: 
       - backend
     ports:
       - "80:3000"
@@ -43,7 +43,7 @@ services:
 
   pgadmin:
     container_name: pgadmin4_container
-    image: dpage/pgadmin4:9
+    image: dpage/pgadmin4:9.2 
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
@@ -56,6 +56,7 @@ services:
       - app-network
     depends_on:
       - database
+
   mailhog:
     image: mailhog/mailhog
     ports:
