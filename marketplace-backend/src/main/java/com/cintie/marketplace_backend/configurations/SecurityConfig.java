@@ -32,11 +32,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.cors(cors -> corsConfiguration())
-            .authorizeHttpRequests(req -> req.requestMatchers("/auth/**").permitAll().anyRequest().authenticated())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED).sessionFixation(fixation -> fixation.newSession()))
             .logout(logout -> logout.logoutSuccessUrl("/auth/status").deleteCookies("JSESSIONID", "remember-me"))
             .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.deny()))
-            .rememberMe(rememberme -> rememberme.rememberMeServices(rememberMeServices()));
+            .rememberMe(rememberme -> rememberme.rememberMeServices(rememberMeServices()))
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/api/telegram/**", "/auth/**"))
+            .authorizeHttpRequests(req -> req
+            .requestMatchers("/api/telegram/**").permitAll()
+            .requestMatchers("/auth/**").permitAll()
+            .anyRequest().authenticated()
+        );
         return http.build();
     }
 
@@ -51,15 +56,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfiguration corsConfiguration(){
         CorsConfiguration cors = new CorsConfiguration();
-        cors.addAllowedOrigin("http://localhost");
+        /*cors.addAllowedOrigin("http://localhost");
+        cors.addAllowedOrigin("http://frontend");
+        cors.addAllowedOrigin("http://backend");*/
+        cors.addAllowedOrigin("*");                    /* */
         cors.addAllowedHeader("*");
-        cors.addAllowedMethod("GET");
-        cors.addAllowedMethod("POST");
-        cors.addAllowedMethod("PUT");
-        cors.addAllowedMethod("DELETE");
-        cors.addAllowedMethod("OPTIONS");
+        cors.addAllowedMethod("*");
         cors.setAllowCredentials(true);
-        cors.addAllowedOriginPattern("/**");
         cors.setMaxAge(3600L);
         return cors;
     }

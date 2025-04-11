@@ -58,6 +58,15 @@ public class UserEntity implements UserDetails {
     @Column
     private String emailVerificationToken;
 
+    @Column(nullable = false)
+    private boolean isTelegramVerified;
+    
+    @Column
+    private String telegramVerificationToken;
+
+    @Column(unique = true)
+    private Long telegramChatId;
+
     @OneToMany(mappedBy = "user")
     @JsonManagedReference
     private List<ProductEntity> products;
