@@ -41,4 +41,9 @@ public class UserService implements UserDetailsService{
         userRepository.save(userEntity);
         return userEntity;
     }
+    public void setTelegramChatId(String userId, Long chatId) {
+        UserEntity user = userRepository.findById(userId).orElseThrow();
+        user.setTelegramChatId(chatId);
+        userRepository.save(user);
+    }
 }

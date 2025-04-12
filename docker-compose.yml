@@ -64,10 +64,29 @@ services:
       - "8025:8025"
     networks:
       - app-network
+  
+  telegram-bot:
+    build:
+      context: ./marketplace-telegram-bot
+      dockerfile: DockerFile
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - BACKEND_URL=${BACKEND_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    volumes:
+      - python-cache:/root/.cache/pip
+      - local-packages:/root/.local
 
 volumes:
   db-data:
   pgadmin-data:
+  python-cache:
+  local-packages:
 
 networks:
   app-network:
