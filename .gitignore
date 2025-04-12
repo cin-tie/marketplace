@@ -1,1 +1,96 @@
+### Java ###
+# Файлы сборки Maven
+target/
+*.jar
+*.war
+*.ear
+*.nar
+*.class
+
+# Файлы IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+bin/
+.factorypath
+
+### Node.js/Next.js (для фронтенда) ###
+# Зависимости
+marketplace-frontend/node_modules/
+marketplace-frontend/.next/
+marketplace-frontend/out/
+marketplace-frontend/.cache/
+
+# Логи и временные файлы
+marketplace-frontend/npm-debug.log*
+marketplace-frontend/yarn-debug.log*
+marketplace-frontend/yarn-error.log*
+
+# Переменные окружения
+marketplace-frontend/.env*
+marketplace-frontend/.env.local
+marketplace-frontend/.env.development
+marketplace-frontend/.env.test
+marketplace-frontend/.env.production
+
+### Python ###
+# Файлы Python
+marketplace-telegram-bot/__pycache__/
+marketplace-telegram-bot/*.py[cod]
+marketplace-telegram-bot/*$py.class
+
+# Виртуальные окружения
+marketplace-telegram-bot/venv/
+marketplace-telegram-bot/env/
+marketplace-telegram-bot/.env
+marketplace-telegram-bot/.venv/
+
+# Логи и кэш
+marketplace-telegram-bot/*.log
+marketplace-telegram-bot/.pytest_cache/
+
+### Docker ###
+# Файлы Docker
+docker-compose.override.yml
+*.dockerignore
+
+### Системные файлы ###
+# ОС
+.DS_Store
+Thumbs.db
+
+# Редакторы
+*.swp
+*.swo
+*~
+.~lock.*
+
+### Локальные настройки ###
+# Файлы окружения
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Файлы конфигурации
+*.properties
+*.cfg
+*.config
+
+### Другое ###
+# Логи
+*.log
+logs/
+
+# Временные файлы
+tmp/
+temp/
+
+# Файлы переменных окружения для всех подпроектов
+**/.env
+**/.env.*

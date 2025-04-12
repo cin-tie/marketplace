@@ -56,10 +56,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfiguration corsConfiguration(){
         CorsConfiguration cors = new CorsConfiguration();
-        /*cors.addAllowedOrigin("http://localhost");
+        cors.addAllowedOrigin("http://localhost");
         cors.addAllowedOrigin("http://frontend");
-        cors.addAllowedOrigin("http://backend");*/
-        cors.addAllowedOrigin("*");                    /* */
+        cors.addAllowedOrigin("http://backend");
         cors.addAllowedHeader("*");
         cors.addAllowedMethod("*");
         cors.setAllowCredentials(true);
