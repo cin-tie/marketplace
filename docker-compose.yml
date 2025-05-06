@@ -13,7 +13,7 @@ services:
   database:
     image: postgres:alpine
     environment:
-      POSTGRES_USER: postuser
+      POSTGRES_USER: postuser 
       POSTGRES_PASSWORD: postpass
       POSTGRES_DB: marketplace
     ports:
@@ -73,7 +73,12 @@ services:
       - BOT_TOKEN=${BOT_TOKEN}
       - BACKEND_URL=${BACKEND_URL}
       - FRONTEND_URL=${FRONTEND_URL}
-      - LOG_LEVEL=DEBUG
+      - LOG_LEVEL=${LOG_LEVEL}
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_USER=postuser
+      - DB_PASSWORD=postpass
+      - DB_NAME=marketplace
     depends_on:
       - backend
     networks:
