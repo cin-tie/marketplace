@@ -68,7 +68,7 @@ public class AuthController {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
 
-        UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").email(signUpReq.email).telegram(signUpReq.telegram).enabled(true).isEmailVerified(false).emailVerificationToken(tokenUtils.generateTokenWithTimestamp()).isTelegramVerified(false).telegramVerificationToken(tokenUtils.generateTokenWithTimestamp()).telegramChatId(null).build();
+        UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").email(signUpReq.email).telegram(signUpReq.telegram).enabled(true).isEmailVerified(false).emailVerificationToken(tokenUtils.generateTokenWithTimestamp()).isTelegramVerified(false).telegramChatId(null).telegramId(null).build();
         try {
             userEntity = userService.createUser(userEntity);
         } catch (Exception e) {

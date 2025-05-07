@@ -48,6 +48,12 @@ public class UserEntity implements UserDetails {
     @Column(nullable = false, unique = true)
     private String telegram;
 
+    @Column(nullable = true, unique = true)
+    private Long telegramId;
+
+    @Column(unique = true)
+    private Long telegramChatId;
+
     @Builder.Default
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean enabled = true;
@@ -60,12 +66,6 @@ public class UserEntity implements UserDetails {
 
     @Column(nullable = false)
     private boolean isTelegramVerified;
-    
-    @Column
-    private String telegramVerificationToken;
-
-    @Column(unique = true)
-    private Long telegramChatId;
 
     @OneToMany(mappedBy = "user")
     @JsonManagedReference

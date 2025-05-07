@@ -21,6 +21,8 @@ class Config(BaseSettings):
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@marketplace.com")
+
+    API_KEY: str = os.getenv("API_KEY", "your-secret-api-key-12345")
     
     @property
     def DB_CONFIG(self):

@@ -2,6 +2,7 @@ package com.cintie.marketplace_backend.configurations;
 
 import javax.sql.DataSource;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -12,37 +13,57 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 
+import com.cintie.marketplace_backend.filters.ApiKeyAuthFilter;
 import com.cintie.marketplace_backend.services.UserService;
 
-import lombok.AllArgsConstructor;
-
 @Configuration
-@AllArgsConstructor
 @EnableWebSecurity(debug = true)
 public class SecurityConfig {
 
-    private UserService userService;
-    private DataSource dataSource;
+    private final UserService userService;
+    private final DataSource dataSource;
+    private final String apiKey;
+    private final String apiKeyHeader;
+
+    public SecurityConfig(
+        UserService userService,
+        DataSource dataSource,
+        @Value("${app.api.key}") String apiKey,
+        @Value("${app.api.key-header}") String apiKeyHeader
+    ) {
+        this.userService = userService;
+        this.dataSource = dataSource;
+        this.apiKey = apiKey;
+        this.apiKeyHeader = apiKeyHeader;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.cors(cors -> corsConfiguration())
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED).sessionFixation(fixation -> fixation.newSession()))
+        http
+            .cors(cors -> corsConfiguration())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .logout(logout -> logout.logoutSuccessUrl("/auth/status").deleteCookies("JSESSIONID", "remember-me"))
             .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.deny()))
             .rememberMe(rememberme -> rememberme.rememberMeServices(rememberMeServices()))
             .csrf(csrf -> csrf.ignoringRequestMatchers("/api/telegram/**", "/auth/**"))
+            .addFilterBefore(apiKeyAuthFilter(), UsernamePasswordAuthenticationFilter.class) // Изменено здесь
             .authorizeHttpRequests(req -> req
-            .requestMatchers("/api/telegram/**").permitAll()
-            .requestMatchers("/auth/**").permitAll()
-            .anyRequest().authenticated()
-        );
+                .requestMatchers("/api/telegram/**").authenticated()
+                .requestMatchers("/auth/**").permitAll()
+                .anyRequest().authenticated()
+            );
         return http.build();
+    }
+
+    @Bean
+    public ApiKeyAuthFilter apiKeyAuthFilter() {
+        return new ApiKeyAuthFilter(apiKeyHeader, apiKey);
     }
 
     @Bean
