@@ -1,4 +1,4 @@
-package com.cintie.marketplace_backend.configurations;
+package com.cintie.marketplace_backend.controllers;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.cintie.marketplace_backend.controllers.AuthController;
 import com.cintie.marketplace_backend.entities.UserEntity;
 import com.cintie.marketplace_backend.repositories.UserRepository;
 
