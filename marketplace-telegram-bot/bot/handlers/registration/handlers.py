@@ -1,8 +1,9 @@
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 import re
+from typing import List
 
 from config import config
 from .states import RegistrationStates
@@ -15,9 +16,24 @@ USERNAME_PATTERN = re.compile(r'^[a-zA-Z0-9_]{6,256}$')
 EMAIL_PATTERN = re.compile(r'^[\w\.-]+@[\w\.-]+\.\w+$')
 PASSWORD_PATTERN = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$')
 
+async def cleanup_registration_messages(chat_id: int, message_ids: List[int], bot: Bot):
+    for msg_id in message_ids:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception as e:
+            logging.warning(f"Failed to delete message {msg_id}: {e}")
+
 @router.message(Command("register"))
-async def start_registration(msg: Message, state: FSMContext):
+async def start_registration(msg: Message, state: FSMContext, bot: Bot):
     try:
+        data = {
+            'messages_to_delete': [msg.message_id],
+            'registration_messages': []
+        }
+        await state.update_data(data)
+
+        await bot.delete_message(chat_id=msg.chat.id, message_id=msg.message_id)
+
         responseId = requests.get(
             f"{config.BACKEND_URL}/api/telegram/check-userId/{msg.from_user.id}",
             headers={"X-API-KEY": config.API_KEY}
@@ -36,46 +52,74 @@ async def start_registration(msg: Message, state: FSMContext):
                 f"Email verified: {"Yes" if user_data['isEmailVerified'] else "No"}\n"
                 f"Telegram verified: {"Yes" if user_data['isTelegramVerified'] else "No"}"
             )
-            await msg.answer(message)
+            sent_msg = await msg.answer(message)
+            
+            data = await state.get_data()
+            data['messages_to_delete'].append(sent_msg.message_id)
+            await state.update_data(data)
             return
 
+        sent_msg = await msg.answer("Let's start registration. Send your username (6-256 characters, letters, numbers, _):")
+
+        data = await state.get_data()
+        data['messages_to_delete'].append(sent_msg.message_id)
+        data['registration_messages'].append(sent_msg.message_id)
+        await state.update_data(data)
+
+        await state.set_state(RegistrationStates.waiting_for_username)
+    
     except Exception as e:
         logging.error(f"Error checking user: {e}")
         await msg.answer("An error during registration occured")
-        return
-    await msg.answer("Let's start registration. Send your username (6-256 characters, letters, numbers, _):")
-    await state.set_state(RegistrationStates.waiting_for_username)
+        await state.clear()
+    
 
 @router.message(RegistrationStates.waiting_for_username, F.text)
 async def process_username(msg: Message, state: FSMContext):
     username = msg.text.strip()
 
+    data = await state.get_data()
+    messages_to_delete = data.get('messages_to_delete', [])
+    messages_to_delete.append(msg.message_id)
+    await state.update_data(messages_to_delete=messages_to_delete)
+
     if not USERNAME_PATTERN.fullmatch(username):
-        await msg.answer(
+        sent_msg = await msg.answer(
                 "Incorrect username. Username must meet the requirements\n"
                 "- 6-256 characters\n"
                 "- Only letters (a-z, A-Z), numbers (0-9) and underscores (_)\n"
                 "Try again:"
             )
+        messages_to_delete.append(sent_msg.message_id)
+        await state.update_data(messages_to_delete=messages_to_delete)
         return
     
     await state.update_data(username=username)
-    await msg.answer("Great! Now send me your email: ")
+    sent_msg = await msg.answer("Great! Now send me your email:")
+    messages_to_delete.append(sent_msg.message_id)
+    await state.update_data(messages_to_delete=messages_to_delete)
     await state.set_state(RegistrationStates.waiting_for_email)
 
 @router.message(RegistrationStates.waiting_for_email, F.text)
 async def process_email(msg: Message, state: FSMContext):
     email = msg.text.strip()
 
+    data = await state.get_data()
+    messages_to_delete = data.get('messages_to_delete', [])
+    messages_to_delete.append(msg.message_id)
+    await state.update_data(messages_to_delete=messages_to_delete)
+    
     if not EMAIL_PATTERN.fullmatch(email):
-        await msg.answer(
+        sent_msg = await msg.answer(
             "Incorrect email. Email should be valid in the format example@domain.com\n"
             "Try again"
         )
+        messages_to_delete.append(sent_msg.message_id)
+        await state.update_data(messages_to_delete=messages_to_delete)
         return
     
     await state.update_data(email=email)
-    await msg.answer(
+    sent_msg = await msg.answer(
         "Great! Now create a password. Requirements:\n"
         "- Minimum 8 characters\n"
         "- At least one uppercase letter\n"
@@ -83,21 +127,30 @@ async def process_email(msg: Message, state: FSMContext):
         "- At least one number\n"
         "Enter password:"
     )
+    messages_to_delete.append(sent_msg.message_id)
+    await state.update_data(messages_to_delete=messages_to_delete)
     await state.set_state(RegistrationStates.waiting_for_password)
 
 @router.message(RegistrationStates.waiting_for_password, F.text)
-async def process_password(msg: Message, state: FSMContext):
+async def process_password(msg: Message, state: FSMContext, bot: Bot):
     password = msg.text.strip()
 
+    data = await state.get_data()
+    messages_to_delete = data.get('messages_to_delete', [])
+    messages_to_delete.append(msg.message_id)
+    await state.update_data(messages_to_delete=messages_to_delete)
+
     if not PASSWORD_PATTERN.fullmatch(password):
-        await msg.answer(
-            "❌ Password does not meet the requirements:\n"
+        sent_msg = await msg.answer(
+            "Password does not meet the requirements:\n"
             "- Minimum 8 characters\n"
             "- At least one uppercase letter\n"
             "- At least one lowercase letter\n"
             "- At least one number\n"
             "Try again:"
         )
+        messages_to_delete.append(sent_msg.message_id)
+        await state.update_data(messages_to_delete=messages_to_delete)
         return
     
     user_data = await state.get_data()
@@ -126,17 +179,23 @@ async def process_password(msg: Message, state: FSMContext):
         )
 
         if response.status_code == 200:
+            await cleanup_registration_messages(msg.chat.id, messages_to_delete, bot)
+           
             await msg.answer(
-                "Register successfull!\n\n"
+                "Register successful!\n\n"
                 "Your account was created and Telegram connected automatically.\n"
                 "Verification message was send to your email."
             )
         else:
             error_data = response.json()
             errors = "\n".join(error_data.get("errors", ["Unknown error"]))
-            await msg.answer(f"An error during registration:\n{errors}")
+            sent_msg = await msg.answer(f"Registration error:\n{errors}")
+            messages_to_delete.append(sent_msg.message_id)
+            await state.update_data(messages_to_delete=messages_to_delete)
     except Exception as e:
         logging.error(f"Registration error: {e}")
-        await msg.answer("An error during connection occured")
+        sent_msg = await msg.answer("An error occurred during registration")
+        messages_to_delete.append(sent_msg.message_id)
+        await state.update_data(messages_to_delete=messages_to_delete)
     finally:
         await state.clear()

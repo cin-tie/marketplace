@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, Bot
 import requests
 import logging
 from aiogram.filters import Command
@@ -9,8 +9,10 @@ from config import config
 router = Router()
 
 @router.message(Command("verification"))
-async def verification_handler(msg: Message):
+async def verification_handler(msg: Message, bot: Bot):
     try:
+        await bot.delete_message(chat_id=msg.chat.id, message_id=msg.message_id)
+
         response = requests.post(
             f"{config.BACKEND_URL}/api/telegram/verify",
             json={
