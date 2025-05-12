@@ -7,7 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 
 from config import config
-from bot.handlers.main import router
+from bot.handlers import router
 
 
 async def main():
