@@ -36,7 +36,7 @@ public class UserService implements UserDetailsService{
         if(userRepository.existsByTelegram(userEntity.getTelegram())){
             throw new TelegramAlreadyExistsException();
         }
-        if(userRepository.existsByTelegramId(userEntity.getTelegramId())){
+        if(userRepository.existsByTelegramId(userEntity.getTelegramId()) && userEntity.getTelegramId() != null){
             throw new TelegramAlreadyExistsException();
         }
 

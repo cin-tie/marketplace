@@ -117,6 +117,9 @@ public class AuthController {
         if (!user.isEmailVerified()) {
             return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Email not verified. Please check your email for verification link."}));
         }
+        if (!user.isTelegramVerified()) {
+            return ResponseEntity.ok().body(new SignInResp(false, new String[] {"Telegram not verified. Please verify it in TelegramApp"}));
+        }
 
         Authentication authenticationReq = UsernamePasswordAuthenticationToken.unauthenticated(user.getUsername(), signInReq.password);
         Authentication authenticationResp = null;
