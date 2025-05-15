@@ -169,8 +169,7 @@ async def process_password(msg: Message, state: FSMContext, bot: Bot):
                 "email": user_data["email"],
                 "telegram": telegram_username,
                 "password": password,
-                "telegramId": msg.from_user.id,
-                "telegramChatId": msg.chat.id
+                "telegramId": msg.from_user.id
             },
             headers={
                 "Content-Type": "application/json",

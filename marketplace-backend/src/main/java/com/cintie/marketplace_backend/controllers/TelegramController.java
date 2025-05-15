@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.cintie.marketplace_backend.entities.UserEntity;
+import com.cintie.marketplace_backend.entities.UserEntity.UserRole;
 import com.cintie.marketplace_backend.exceptions.ValidationException;
 import com.cintie.marketplace_backend.repositories.UserRepository;
 import com.cintie.marketplace_backend.services.EmailService;
@@ -35,7 +36,6 @@ public class TelegramController {
         UserEntity user = userRepository.findByTelegram(request.telegramUsername())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        user.setTelegramChatId(request.telegramChatId());
         user.setTelegramId(request.telegramId());
         user.setTelegramVerified(true);
         userRepository.save(user);
@@ -51,7 +51,17 @@ public class TelegramController {
             return ResponseEntity.badRequest().body(new String[] {e.getMessage()});
         }
 
-        UserEntity userEntity = UserEntity.builder().username(request.username).password(request.password).role("USER").email(request.email).telegram(request.telegram).enabled(true).isEmailVerified(false).emailVerificationToken(tokenUtils.generateTokenWithTimestamp()).isTelegramVerified(false).telegramChatId(null).telegramId(null).build();
+        UserEntity userEntity = UserEntity.builder().username(request.username)
+                                                    .password(request.password)
+                                                    .role(UserRole.ROLE_USER)
+                                                    .email(request.email)
+                                                    .telegram(request.telegram)
+                                                    .enabled(true)
+                                                    .emailVerified(false)
+                                                    .emailVerificationToken(tokenUtils.generateTokenWithTimestamp())
+                                                    .telegramVerified(false)
+                                                    .telegramId(null)
+                                                    .build();
 
         try{
             userEntity = userService.createUser(userEntity);
@@ -117,5 +127,5 @@ public class TelegramController {
         }
     }
 
-    private record TelegramVerifyRequest(String telegramUsername, Long telegramId, Long telegramChatId) {}
+    private record TelegramVerifyRequest(String telegramUsername, Long telegramId) {}
 }

@@ -3,6 +3,7 @@ package com.cintie.marketplace_backend.controllers;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cintie.marketplace_backend.entities.UserEntity;
+import com.cintie.marketplace_backend.entities.UserEntity.UserRole;
 import com.cintie.marketplace_backend.exceptions.ValidationException;
 import com.cintie.marketplace_backend.repositories.UserRepository;
 import com.cintie.marketplace_backend.services.EmailService;
@@ -68,7 +69,18 @@ public class AuthController {
             return ResponseEntity.ok().body(new SignUpResp(false, new String[] {e.getMessage()}));
         }
 
-        UserEntity userEntity = UserEntity.builder().username(signUpReq.username).password(signUpReq.password).role("USER").email(signUpReq.email).telegram(signUpReq.telegram).enabled(true).isEmailVerified(false).emailVerificationToken(tokenUtils.generateTokenWithTimestamp()).isTelegramVerified(false).telegramChatId(null).telegramId(null).build();
+        UserEntity userEntity = UserEntity.builder().username(signUpReq.username)
+                                                    .password(signUpReq.password)
+                                                    .role(UserRole.ROLE_USER)
+                                                    .email(signUpReq.email)
+                                                    .telegram(signUpReq.telegram)
+                                                    .enabled(true)
+                                                    .emailVerified(false)
+                                                    .emailVerificationToken(tokenUtils.generateTokenWithTimestamp())
+                                                    .telegramVerified(false)
+                                                    .telegramId(null)
+                                                    .createdAt(System.currentTimeMillis())
+                                                    .build();
         try {
             userEntity = userService.createUser(userEntity);
         } catch (Exception e) {

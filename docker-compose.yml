@@ -29,7 +29,7 @@ services:
     networks:
       - app-network
     
-  backend:  
+  backend:
     image: your-spring-boot-app
     build:
       context: ./marketplace-backend
