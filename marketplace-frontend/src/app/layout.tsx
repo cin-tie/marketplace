@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "Marketplace",
-  description: "A modern marketplace platform",
+  title: "Flip&Bid",
+  description: "Best auction only for you",
 };
 
 export default function RootLayout({

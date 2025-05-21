@@ -1,10 +1,10 @@
 package com.cintie.marketplace_backend.exceptions;
 
 public class RuntimeException extends Exception{
-    RuntimeException(String message){
+    public RuntimeException(String message){
         super(message);
     }
-    RuntimeException(){
+    public RuntimeException(){
         super("Runtime exception");
     }
 }

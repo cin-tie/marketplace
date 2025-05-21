@@ -2,6 +2,8 @@
 
 export default function Home(){
     return(
-        <main>Flip&Bid</main>
+        <main>
+            
+        </main>
     );
 }
